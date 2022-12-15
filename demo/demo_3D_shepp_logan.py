@@ -40,6 +40,7 @@ sino = svmbir.project(phantom, angles, num_rows_cols )
 
 # Perform fixed resolution MBIR reconstruction
 recon = svmbir.recon(sino, angles, sharpness=sharpness, snr_db=snr_db, T=T)
+#recon = svmbir.recon(sino, angles, sharpness=sharpness, snr_db=2, T=T)
 
 # Compute Normalized Root Mean Squared Error
 nrmse = svmbir.phantom.nrmse(recon, phantom)
