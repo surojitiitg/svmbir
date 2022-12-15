@@ -5,10 +5,13 @@
 from psutil import cpu_count
 import shutil
 import numpy as np
+from numpy import zeros, newaxis
 import os
 import sys
 import warnings
 import svmbir._utils as utils
+import cv2
+from demo_utils import plot_image
 
 if os.environ.get('CLIB') =='CMD_LINE':
     import svmbir.interface_py_c as ci
@@ -142,28 +145,80 @@ def auto_sigma_y(sino, weights, magnification = 1.0, delta_channel = 1.0, delta_
     Returns:
         ndarray: Automatic values of regularization parameter.
     """
-    # Compute indicator function for sinogram support
-    sino_indicator = _sino_indicator(sino)
+    if(snr_db == 2):
+        weight_factor = 1
+        denoised_sino = []
+        for img_inp in sino:
+            #print(img_inp.shape)
+            #print(len(img_inp.shape))
+            if len(img_inp.shape) == 2:
+                img_inp_aug = img_inp[:, :, newaxis]
+            else:
+                img_inp_aug = img_inp[:, newaxis]
+                
+            #print(img_inp_aug.shape)
+            #print(img_inp_aug.dtype)
+            #input("press for key")
+            #plot_image(np.squeeze(img_inp_aug), title='Original', filename='output1/shepp_logan_sinogram_noised.png')
+            img_inp_aug = np.uint8(img_inp_aug)
+            denoised = cv2.fastNlMeansDenoising(img_inp_aug, None, 8.0, 3, 21)
+            denoised = np.float32(denoised)
+            #plot_image(np.squeeze(denoised), title='Denoised', filename='output1/shepp_logan_sinogram_denoised.png')
+            denoised = np.squeeze(denoised)
+            denoised_sino.append(denoised)
+            #input("press for key")
+            #print("Hello*********")
+        denoised_sino = np.array(denoised_sino)
+        denoised_sino_flatten = denoised_sino.flatten()
+        sino_flatten = sino.flatten()
+        weights_flatten = weights.flatten()
+        print(np.mean(denoised_sino_flatten))
+        print(np.mean(sino_flatten))
+        diff = denoised_sino_flatten - sino_flatten
+        diff_squared = diff * diff
+        diff_squared_weighted = diff_squared*weights_flatten
+        diff_squared_weighted_sum = np.sum(diff_squared_weighted)
+        for dim in sino.shape:
+            weight_factor = weight_factor * dim
 
-    # compute RMS value of sinogram excluding empty space
-    signal_rms = np.average(weights * sino ** 2, None, sino_indicator) ** 0.5
+        #sigma_y = diff_squared_weighted_sum/(sino.shape[0]*sino.shape[1]*sino.shape[2])
+        sigma_y = diff_squared_weighted_sum/(weight_factor)
+        print("sigma_y is")
+        print(sigma_y)
+        if sigma_y > 0:
+            return sigma_y
+        else:
+            return 1.0
 
-    # convert snr to relative noise standard deviation
-    rel_noise_std = 10 ** (-snr_db / 20)
+        #print(denoised_sino.shape)    
 
-    # compute the default_pixel_pitch = the detector pixel pitch in the image plane given the magnification
-    default_pixel_pitch = delta_channel / magnification
-
-    # compute the image pixel pitch relative to the default.
-    pixel_pitch_relative_to_default = delta_pixel / default_pixel_pitch
-
-    # compute sigma_y and scale by relative pixel and detector pitch
-    sigma_y = rel_noise_std * signal_rms * pixel_pitch_relative_to_default ** (0.5)
-
-    if sigma_y > 0:
-        return sigma_y
+        
     else:
-        return 1.0
+        # Compute indicator function for sinogram support
+        sino_indicator = _sino_indicator(sino)
+
+        # compute RMS value of sinogram excluding empty space
+        signal_rms = np.average(weights * sino ** 2, None, sino_indicator) ** 0.5
+
+        # convert snr to relative noise standard deviation
+        rel_noise_std = 10 ** (-snr_db / 20)
+
+        # compute the default_pixel_pitch = the detector pixel pitch in the image plane given the magnification
+        default_pixel_pitch = delta_channel / magnification
+
+        # compute the image pixel pitch relative to the default.
+        pixel_pitch_relative_to_default = delta_pixel / default_pixel_pitch
+
+        # compute sigma_y and scale by relative pixel and detector pitch
+        sigma_y = rel_noise_std * signal_rms * pixel_pitch_relative_to_default ** (0.5)
+        print("The value of sigma_y is:")
+        print(sigma_y)
+
+        if sigma_y > 0:
+            return sigma_y
+        else:
+            return 1.0
+                
 
 
 def auto_sigma_x(sino, magnification = 1.0, delta_channel = 1.0, sharpness = 0.0 ):
@@ -445,6 +500,8 @@ def recon(sino, angles,
 
     # Set automatic value of sigma_y
     if sigma_y is None:
+        print("The value of snrdb is:")
+        print(snr_db)
         sigma_y = auto_sigma_y(sino, weights, magnification, delta_channel=delta_channel, delta_pixel=delta_pixel, snr_db=snr_db)
 
     # Set automatic value of sigma_x
