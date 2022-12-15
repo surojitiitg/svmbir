@@ -161,7 +161,7 @@ def auto_sigma_y(sino, weights, magnification = 1.0, delta_channel = 1.0, delta_
             #input("press for key")
             #plot_image(np.squeeze(img_inp_aug), title='Original', filename='output1/shepp_logan_sinogram_noised.png')
             img_inp_aug = np.uint8(img_inp_aug)
-            denoised = cv2.fastNlMeansDenoising(img_inp_aug, None, 8.0, 3, 21)
+            denoised = cv2.fastNlMeansDenoising(img_inp_aug, None, h = 8.0, templateWindowSize = 3, searchWindowSize = 21)
             denoised = np.float32(denoised)
             #plot_image(np.squeeze(denoised), title='Denoised', filename='output1/shepp_logan_sinogram_denoised.png')
             denoised = np.squeeze(denoised)
